@@ -36,19 +36,20 @@ except ImportError:
     )
 
 # Market -> exchange code (exchange-calendars)
-MARKET_EXCHANGE = {"cn": "XSHG", "hk": "XHKG", "us": "XNYS"}
+MARKET_EXCHANGE = {"cn": "XSHG", "hk": "XHKG", "us": "XNYS", "kr": "XKRX"}
 
 # Market -> IANA timezone for "today"
 MARKET_TIMEZONE = {
     "cn": "Asia/Shanghai",
     "hk": "Asia/Hong_Kong",
     "us": "America/New_York",
+    "kr": "Asia/Seoul",
 }
 
 # P0 market phase baseline (Issue #1386). This is an intentionally small
 # regular-session inference layer; it does not change existing fail-open
 # trading-day filtering or effective-date behavior.
-_CLOSING_AUCTION_WINDOW_MINUTES = {"cn": 3, "hk": 10, "us": 5}
+_CLOSING_AUCTION_WINDOW_MINUTES = {"cn": 3, "hk": 10, "us": 5, "kr": 5}
 _SUPPORTED_ANALYSIS_PHASES = {
     "auto",
     "premarket",
@@ -111,18 +112,21 @@ def get_market_for_stock(code: str) -> Optional[str]:
     Infer market region for a stock code.
 
     Returns:
-        'cn' | 'hk' | 'us' | None (None = unrecognized, fail-open: treat as open)
+        'cn' | 'hk' | 'us' | 'kr' | None (None = unrecognized, fail-open: treat as open)
     """
     if not code or not isinstance(code, str):
         return None
     code = (code or "").strip().upper()
 
     from data_provider import is_us_stock_code, is_us_index_code, is_hk_stock_code
+    from data_provider.base import _is_kr_market
 
     if is_us_stock_code(code) or is_us_index_code(code):
         return "us"
     if is_hk_stock_code(code):
         return "hk"
+    if _is_kr_market(code):
+        return "kr"
     # A-share: 6-digit numeric
     if code.isdigit() and len(code) == 6:
         return "cn"
@@ -511,10 +515,10 @@ def get_open_markets_today() -> Set[str]:
     Get markets that are open today (by each market's local timezone).
 
     Returns:
-        Set of market keys ('cn', 'hk', 'us') that are trading today
+        Set of market keys ('cn', 'hk', 'us', 'kr') that are trading today
     """
     if not _XCALS_AVAILABLE:
-        return {"cn", "hk", "us"}
+        return {"cn", "hk", "us", "kr"}
     result: Set[str] = set()
     for mkt, tz_name in MARKET_TIMEZONE.items():
         try:

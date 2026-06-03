@@ -122,6 +122,10 @@ def normalize_stock_code(stock_code: str) -> str:
         if candidate.isdigit() and len(candidate) == 6:
             return candidate
 
+    # 韩国股票：保留 .KS/.KQ 后缀（yfinance 需要）
+    if _is_kr_market(upper):
+        return upper
+
     # Strip .SH/.SZ/.BJ suffix (e.g. 600519.SH -> 600519, 920748.BJ -> 920748)
     if '.' in code:
         base, suffix = code.rsplit('.', 1)
@@ -164,6 +168,23 @@ def _is_hk_market(code: str) -> bool:
     return False
 
 
+def _is_kr_market(code: str) -> bool:
+    """
+    判定是否为韩国股票代码。
+
+    支持 .KS（韩国交易所）和 .KQ（科斯达克）后缀。
+    """
+    normalized = (code or "").strip().upper()
+    if normalized.endswith(".KS") or normalized.endswith(".KQ"):
+        base = normalized[:-3]
+        return base.isdigit() and 1 <= len(base) <= 6
+    return False
+
+
+# Public alias for external callers
+is_kr_stock_code = _is_kr_market
+
+
 def _is_etf_code(code: str) -> bool:
     """判定 A 股 ETF 基金代码（保守规则）。"""
     normalized = normalize_stock_code(code)
@@ -204,11 +225,13 @@ def _is_meaningful_chip_distribution(chip: Any) -> bool:
 
 
 def _market_tag(code: str) -> str:
-    """返回市场标签: cn/us/hk."""
+    """返回市场标签: cn/us/hk/kr."""
     if _is_us_market(code):
         return "us"
     if _is_hk_market(code):
         return "hk"
+    if _is_kr_market(code):
+        return "kr"
     return "cn"
 
 
@@ -569,7 +592,7 @@ class DataFetcherManager:
         "TushareFetcher": {"cn", "hk"},
         "PytdxFetcher": {"cn"},
         "BaostockFetcher": {"cn"},
-        "YfinanceFetcher": {"cn", "hk", "us"},
+        "YfinanceFetcher": {"cn", "hk", "us", "kr"},
         "LongbridgeFetcher": {"hk", "us"},
         "FinnhubFetcher": {"us"},
         "AlphaVantageFetcher": {"us"},
@@ -695,7 +718,7 @@ class DataFetcherManager:
         market: str,
     ) -> List[BaseFetcher]:
         """Skip built-in daily fetchers that are known not to support a market."""
-        if market not in {"cn", "hk", "us"}:
+        if market not in {"cn", "hk", "us", "kr"}:
             return fetchers
 
         kept: List[BaseFetcher] = []
@@ -1165,13 +1188,16 @@ class DataFetcherManager:
         is_us_index = is_us_index_code(stock_code)
         is_us = is_us_index or is_us_stock_code(stock_code)
         is_hk = (not is_us) and _is_hk_market(stock_code)
+        is_kr = (not is_us) and (not is_hk) and _is_kr_market(stock_code)
         if is_hk:
             fetchers = self._filter_daily_fetchers_for_market(fetchers, "hk")
+        if is_kr:
+            fetchers = self._filter_daily_fetchers_for_market(fetchers, "kr")
         fetchers = self._filter_fetchers_by_capability(fetchers, capability="daily_data")
         total_fetchers = len(fetchers)
 
         if total_fetchers == 0:
-            market_label = "美股指数" if is_us_index else "美股" if is_us else "港股" if is_hk else "A股"
+            market_label = "美股指数" if is_us_index else "美股" if is_us else "港股" if is_hk else "韩国" if is_kr else "A股"
             error_summary = f"{market_label} {stock_code} 获取失败:\n暂无可用数据源"
             logger.error(f"[数据源终止] {stock_code} 获取失败: {error_summary}")
             raise DataFetchError(error_summary)
@@ -1264,6 +1290,82 @@ class DataFetcherManager:
                     break
 
             error_summary = f"{market_label} {stock_code} 获取失败:\n" + "\n".join(errors)
+            elapsed = time.time() - request_start
+            logger.error(f"[数据源终止] {stock_code} 获取失败: elapsed={elapsed:.2f}s\n{error_summary}")
+            raise DataFetchError(error_summary)
+
+        # 韩国股票：直接路由到 YfinanceFetcher（唯一支持韩国市场的数据源）
+        if is_kr:
+            source_order = ["YfinanceFetcher"]
+            for order_index, src_name in enumerate(source_order):
+                fallback_to = None
+                for attempt, fetcher in enumerate(fetchers, start=1):
+                    if fetcher.name != src_name:
+                        continue
+                    attempt_start = time.time()
+                    try:
+                        logger.info(
+                            f"[数据源尝试 {attempt}/{total_fetchers}] [{fetcher.name}] "
+                            f"韩国 {stock_code} 路由..."
+                        )
+                        df = self._call_fetcher_method(
+                            fetcher,
+                            "get_daily_data",
+                            stock_code=stock_code,
+                            start_date=start_date,
+                            end_date=end_date,
+                            days=days,
+                        )
+                        if df is not None and not df.empty:
+                            duration_ms = int((time.time() - attempt_start) * 1000)
+                            record_provider_run(
+                                data_type="daily_data",
+                                provider=fetcher.name,
+                                operation="get_daily_data",
+                                success=True,
+                                latency_ms=duration_ms,
+                                record_count=len(df),
+                            )
+                            elapsed = time.time() - request_start
+                            logger.info(
+                                f"[数据源完成] {stock_code} 使用 [{fetcher.name}] 获取成功: "
+                                f"rows={len(df)}, elapsed={elapsed:.2f}s"
+                            )
+                            return df, fetcher.name
+                        duration_ms = int((time.time() - attempt_start) * 1000)
+                        record_provider_run(
+                            data_type="daily_data",
+                            provider=fetcher.name,
+                            operation="get_daily_data",
+                            success=False,
+                            latency_ms=duration_ms,
+                            error_type="empty",
+                            error_message="empty result",
+                            fallback_to=fallback_to,
+                            record_count=0,
+                        )
+                    except Exception as e:
+                        error_type, error_reason = summarize_exception(e)
+                        error_msg = f"[{fetcher.name}] ({error_type}) {error_reason}"
+                        duration_ms = int((time.time() - attempt_start) * 1000)
+                        record_provider_run(
+                            data_type="daily_data",
+                            provider=fetcher.name,
+                            operation="get_daily_data",
+                            success=False,
+                            latency_ms=duration_ms,
+                            error_type=error_type,
+                            error_message=error_reason,
+                            fallback_to=fallback_to,
+                        )
+                        logger.warning(
+                            f"[数据源失败 {attempt}/{total_fetchers}] [{fetcher.name}] {stock_code}: "
+                            f"error_type={error_type}, reason={error_reason}"
+                        )
+                        errors.append(error_msg)
+                    break
+
+            error_summary = f"韩国 {stock_code} 获取失败:\n" + "\n".join(errors)
             elapsed = time.time() - request_start
             logger.error(f"[数据源终止] {stock_code} 获取失败: elapsed={elapsed:.2f}s\n{error_summary}")
             raise DataFetchError(error_summary)

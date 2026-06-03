@@ -104,6 +104,11 @@ class YfinanceFetcher(BaseFetcher):
         """
         code = stock_code.strip().upper()
 
+        # 韩国股票：.KS（韩国交易所）/ .KQ（科斯达克），直接透传
+        if code.endswith('.KS') or code.endswith('.KQ'):
+            logger.debug(f"识别为韩国股票: {code}")
+            return code
+
         # 美股指数：映射到 Yahoo Finance 符号（如 SPX -> ^GSPC）
         yf_symbol, _ = get_us_index_yf_symbol(code)
         if yf_symbol:
