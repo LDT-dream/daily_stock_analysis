@@ -39,6 +39,12 @@ def detect_market(stock_code: Optional[str]) -> str:
     if re.match(r'^[A-Z]{1,5}(\.[A-Z]{1,2})?$', code):
         return "us"
 
+    # Korean stocks: 000660.KS (KRX) or 000660.KQ (KOSDAQ)
+    if code.endswith('.KS') or code.endswith('.KQ'):
+        base = code[:-3]
+        if base.isdigit() and len(base) == 6:
+            return "kr"
+
     # Default: A-shares (6-digit numbers like 600519, 000001)
     return "cn"
 
@@ -57,6 +63,10 @@ _MARKET_ROLES = {
     "us": {
         "zh": "美股",
         "en": "US stock",
+    },
+    "kr": {
+        "zh": "韩国",
+        "en": "Korean stock",
     },
 }
 
@@ -89,6 +99,16 @@ _MARKET_GUIDELINES = {
         "en": (
             "- This analysis covers a **US stock** (listed on NYSE/NASDAQ).\n"
             "- US stocks have no daily price limits (but have circuit breakers), allow T+0 and pre/after-market trading. Consider USD FX, Fed policy, and SEC regulations."
+        ),
+    },
+    "kr": {
+        "zh": (
+            "- 本次分析对象为 **韩国股票**（韩国交易所 KRX/KOSDAQ 上市）。\n"
+            "- 韩股涨跌停幅度为 ±30%，支持 T+0 交易，需关注韩元汇率、外资流向及韩国特有财阀治理结构。"
+        ),
+        "en": (
+            "- This analysis covers a **Korean stock** (listed on KRX/KOSDAQ).\n"
+            "- Korean stocks have ±30% daily price limits, allow T+0 trading. Consider KRW FX, foreign investor flows, and Korea-specific chaebol governance."
         ),
     },
 }

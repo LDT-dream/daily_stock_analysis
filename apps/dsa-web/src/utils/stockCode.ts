@@ -56,10 +56,16 @@ export function normalizeStockCode(stockCode: string): string {
   }
 
   // Strip .SH/.SZ/.BJ suffix and .HK suffix with HK-prefix canonicalization
+  // Also handle Korean .KS/.KQ suffix (preserve as-is)
   if (code.includes('.')) {
     const dotIndex = code.lastIndexOf('.');
     const base = code.slice(0, dotIndex);
     const suffix = code.slice(dotIndex + 1).toUpperCase();
+
+    // 000660.KS → 000660.KS (Korean, preserve)
+    if ((suffix === 'KS' || suffix === 'KQ') && /^\d{6}$/.test(base)) {
+      return `${base}.${suffix}`;
+    }
 
     // 00700.HK → HK00700
     if (suffix === 'HK' && /^\d{1,5}$/.test(base)) {
