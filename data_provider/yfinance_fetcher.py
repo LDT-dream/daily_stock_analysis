@@ -692,14 +692,16 @@ class YfinanceFetcher(BaseFetcher):
                 index_name=index_name,
             )
 
-        # 仅处理美股股票
-        if not self._is_us_stock(stock_code):
-            logger.debug(f"[Yfinance] {stock_code} 不是美股，跳过")
+        # 仅处理美股股票和韩国股票
+        is_kr = stock_code.strip().upper().endswith('.KS') or stock_code.strip().upper().endswith('.KQ')
+        if not self._is_us_stock(stock_code) and not is_kr:
+            logger.debug(f"[Yfinance] {stock_code} 不是美股或韩国股票，跳过")
             return None
 
         try:
             symbol = stock_code.strip().upper()
-            logger.debug(f"[Yfinance] 获取美股 {symbol} 实时行情")
+            market_label = "韩国" if is_kr else "美股"
+            logger.debug(f"[Yfinance] 获取{market_label} {symbol} 实时行情")
 
             ticker = yf.Ticker(symbol)
 

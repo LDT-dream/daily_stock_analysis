@@ -1646,6 +1646,16 @@ class DataFetcherManager:
         is_us_index = is_us_index_code(stock_code)
         is_us = is_us_index or _is_us_code(stock_code)
         is_hk = (not is_us) and _is_hk_market(stock_code)
+        is_kr = (not is_us) and (not is_hk) and _is_kr_market(stock_code)
+
+        # 韩国股票：直接使用 YfinanceFetcher
+        if is_kr:
+            yf_quote = self._try_fetcher_quote(stock_code, "YfinanceFetcher")
+            if yf_quote is not None:
+                logger.info(f"[实时行情] 韩国 {stock_code} 成功获取 (来源: YfinanceFetcher)")
+                return self._enrich_realtime_quote(yf_quote)
+            logger.warning(f"[实时行情] 韩国 {stock_code} YfinanceFetcher 获取失败")
+            return None
 
         if is_us or is_hk:
             prefer_lb = self._longbridge_preferred() and not is_us_index

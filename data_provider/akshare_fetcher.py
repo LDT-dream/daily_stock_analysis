@@ -231,6 +231,12 @@ def _is_us_code(stock_code: str) -> bool:
     return is_us_stock_code(stock_code)
 
 
+def _is_kr_code(stock_code: str) -> bool:
+    """判断代码是否为韩国股票（.KS/.KQ 后缀）。"""
+    code = (stock_code or "").strip().upper()
+    return code.endswith('.KS') or code.endswith('.KQ')
+
+
 def _to_sina_tx_symbol(stock_code: str) -> str:
     """Convert 6-digit A-share code to sh/sz/bj prefixed symbol for Sina/Tencent APIs."""
     base = (stock_code.strip().split(".")[0] if "." in stock_code else stock_code).strip()
@@ -927,6 +933,10 @@ class AkshareFetcher(BaseFetcher):
         if _is_us_code(stock_code):
             # 美股不使用 Akshare，由 YfinanceFetcher 处理
             logger.debug(f"[API跳过] {stock_code} 是美股，Akshare 不支持美股实时行情")
+            return None
+        elif _is_kr_code(stock_code):
+            # 韩国股票不使用 Akshare，由 YfinanceFetcher 处理
+            logger.debug(f"[API跳过] {stock_code} 是韩国股票，Akshare 不支持韩国实时行情")
             return None
         elif _is_hk_code(stock_code):
             return self._get_hk_realtime_quote(stock_code)
