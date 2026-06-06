@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [新功能] 韩国股票资金流向数据：通过 Naver Finance 获取外资/机构每日净买卖数据，支持1日/5日/10日累计统计。
+- [改进] AI 分析 prompt 新增外资/机构资金流向区块，展示净买入股数和持续性数据。
 - [新功能] 韩国股票基本面数据增强：yfinance 提供营收同比、净利同比、ROE、毛利率、营业利润率、净利率、远期PE、市销率、EV/EBITDA、资产负债率、流动比率、Beta、分析师数量、目标价、机构持股比例等完整基本面指标。
 - [改进] 韩国股票（.KS/.KQ）路由至 yfinance 基本面适配器，与美股/港股共享 offshore 数据通道。
 - [改进] AI 分析 prompt 新增「成长性与估值指标」区块，自动展示营收同比、净利同比、ROE、毛利率等增长数据。
