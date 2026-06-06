@@ -104,6 +104,27 @@ STOCK_NAME_MAP = {
     "01299": "友邦保险",
     "00941": "中国移动",
     "00883": "中国海洋石油",
+    # === Korean stocks (.KS/.KQ) ===
+    "000660.KS": "SK hynix",
+    "005930.KS": "Samsung Electronics",
+    "035420.KS": "NAVER",
+    "035720.KS": "Kakao",
+    "051910.KS": "LG Chem",
+    "006400.KS": "Samsung SDI",
+    "028260.KS": "Samsung C&T",
+    "012330.KS": "Hyundai Mobis",
+    "005380.KS": "Hyundai Motor",
+    "017670.KS": "SK Telecom",
+    "030200.KS": "KT Corp",
+    "066570.KS": "LG Electronics",
+    "003550.KS": "LG Corp",
+    "105560.KS": "KB Financial",
+    "055550.KS": "Shinhan Financial",
+    "032640.KS": "LG Uplus",
+    "096770.KS": "SK Innovation",
+    "018260.KS": "Samsung SDS",
+    "207940.KS": "Samsung Biologics",
+    "323410.KS": "Kakao Bank",
 }
 
 

@@ -596,6 +596,7 @@ class DataFetcherManager:
         "LongbridgeFetcher": {"hk", "us"},
         "FinnhubFetcher": {"us"},
         "AlphaVantageFetcher": {"us"},
+        "KoreaFinanceFetcher": {"kr"},
     }
 
     def __init__(self, fetchers: Optional[List[BaseFetcher]] = None):
@@ -1115,6 +1116,10 @@ class DataFetcherManager:
         else:
             logger.debug("[数据源初始化] 跳过未配置的 AlphaVantageFetcher")
 
+        # 韩国股票数据源（基于 FinanceDataReader，无需 API key）
+        from .korea_finance_fetcher import KoreaFinanceFetcher
+        optional_fetchers.append(KoreaFinanceFetcher())
+
         # 初始化数据源列表
         self._ensure_concurrency_guards()
         with self._fetchers_lock:
@@ -1294,9 +1299,9 @@ class DataFetcherManager:
             logger.error(f"[数据源终止] {stock_code} 获取失败: elapsed={elapsed:.2f}s\n{error_summary}")
             raise DataFetchError(error_summary)
 
-        # 韩国股票：直接路由到 YfinanceFetcher（唯一支持韩国市场的数据源）
+        # 韩国股票：YfinanceFetcher 首选，KoreaFinanceFetcher 兜底
         if is_kr:
-            source_order = ["YfinanceFetcher"]
+            source_order = ["YfinanceFetcher", "KoreaFinanceFetcher"]
             for order_index, src_name in enumerate(source_order):
                 fallback_to = None
                 for attempt, fetcher in enumerate(fetchers, start=1):
@@ -1648,13 +1653,18 @@ class DataFetcherManager:
         is_hk = (not is_us) and _is_hk_market(stock_code)
         is_kr = (not is_us) and (not is_hk) and _is_kr_market(stock_code)
 
-        # 韩国股票：直接使用 YfinanceFetcher
+        # 韩国股票：YfinanceFetcher 首选，KoreaFinanceFetcher 兜底
         if is_kr:
             yf_quote = self._try_fetcher_quote(stock_code, "YfinanceFetcher")
             if yf_quote is not None:
                 logger.info(f"[实时行情] 韩国 {stock_code} 成功获取 (来源: YfinanceFetcher)")
                 return self._enrich_realtime_quote(yf_quote)
-            logger.warning(f"[实时行情] 韩国 {stock_code} YfinanceFetcher 获取失败")
+            # 尝试 KoreaFinanceFetcher 兜底
+            kr_quote = self._try_fetcher_quote(stock_code, "KoreaFinanceFetcher")
+            if kr_quote is not None:
+                logger.info(f"[实时行情] 韩国 {stock_code} 成功获取 (来源: KoreaFinanceFetcher)")
+                return self._enrich_realtime_quote(kr_quote)
+            logger.warning(f"[实时行情] 韩国 {stock_code} 所有数据源获取失败")
             return None
 
         if is_us or is_hk:
