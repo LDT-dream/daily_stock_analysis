@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [新功能] 韩国股票基本面数据增强：yfinance 提供营收同比、净利同比、ROE、毛利率、营业利润率、净利率、远期PE、市销率、EV/EBITDA、资产负债率、流动比率、Beta、分析师数量、目标价、机构持股比例等完整基本面指标。
+- [改进] 韩国股票（.KS/.KQ）路由至 yfinance 基本面适配器，与美股/港股共享 offshore 数据通道。
+- [改进] AI 分析 prompt 新增「成长性与估值指标」区块，自动展示营收同比、净利同比、ROE、毛利率等增长数据。
+- [改进] offshore 市场估值块增加 yfinance PE/PB/市值回退，解决韩国股票 PE/PB 缺失问题。
 - [修复] Agent 分析路径生成 AnalysisContextPack overview 前复用已落库日线分析上下文，避免日线已抓取成功仍显示 `daily_bars_missing`。
 - [改进] 首次运行配置校验补充缺失 AI Key、空 STOCK_LIST、Telegram/邮件成对字段和 Webhook URL 前缀诊断。
 - [修复] 注册 /api/v1/health 路由并加入认证豁免，修复该路径返回 404 以及开启 ADMIN_AUTH_ENABLED 后健康探针收到 401 的问题。
