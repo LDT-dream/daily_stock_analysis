@@ -308,3 +308,96 @@ class KoreaFinanceFetcher(BaseFetcher):
         except Exception as e:
             logger.debug(f"[韩国数据] 获取行业信息失败 {stock_code}: {e}")
             return None
+
+    def get_capital_flow(self, stock_code: str, lookback_days: int = 10) -> Optional[Dict[str, Any]]:
+        """获取韩国股票资金流向（外资/机构净买卖）。
+
+        数据来源：Naver Finance (无需认证)
+        返回格式：
+        {
+            "foreign_net_inflow": int,       # 外资净买入（股数，最新一日）
+            "institutional_net_inflow": int, # 机构净买入（股数，最新一日）
+            "foreign_net_inflow_5d": int,    # 外资5日累计净买入
+            "institutional_net_inflow_5d": int, # 机构5日累计净买入
+            "foreign_net_inflow_10d": int,   # 外资10日累计净买入
+            "institutional_net_inflow_10d": int, # 机构10日累计净买入
+            "daily_data": [...]              # 每日明细
+        }
+        """
+        if not _is_kr_code(stock_code):
+            return None
+
+        symbol = _extract_kr_symbol(stock_code)
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+
+            url = 'https://finance.naver.com/item/frgn.naver'
+            params = {'code': symbol, 'page': '1'}
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+            resp = requests.get(url, params=params, headers=headers, timeout=10)
+            resp.encoding = 'euc-kr'
+
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            tables = soup.find_all('table')
+
+            if len(tables) < 4:
+                logger.warning(f"[韩国资金] 表格不足 {stock_code}")
+                return None
+
+            # Table 3 has: date, close, change, change%, volume, institutional, foreign
+            target_table = tables[3]
+            rows = target_table.find_all('tr')
+
+            daily_data = []
+            for row in rows[1:]:  # skip header
+                cells = [td.get_text(strip=True) for td in row.find_all('td')]
+                if len(cells) < 7 or not cells[0]:
+                    continue
+
+                date_str = cells[0].replace('.', '-')
+                inst_str = cells[5].replace(',', '').replace('+', '')
+                foreign_str = cells[6].replace(',', '').replace('+', '')
+
+                try:
+                    inst_val = int(inst_str) if inst_str and inst_str != '-' else 0
+                except ValueError:
+                    inst_val = 0
+                try:
+                    foreign_val = int(foreign_str) if foreign_str and foreign_str != '-' else 0
+                except ValueError:
+                    foreign_val = 0
+
+                daily_data.append({
+                    'date': date_str,
+                    'institutional_net': inst_val,
+                    'foreign_net': foreign_val,
+                })
+
+            if not daily_data:
+                return None
+
+            # Compute aggregates
+            latest = daily_data[0]
+            foreign_5d = sum(d['foreign_net'] for d in daily_data[:5])
+            inst_5d = sum(d['institutional_net'] for d in daily_data[:5])
+            foreign_10d = sum(d['foreign_net'] for d in daily_data[:10])
+            inst_10d = sum(d['institutional_net'] for d in daily_data[:10])
+
+            result = {
+                'foreign_net_inflow': latest['foreign_net'],
+                'institutional_net_inflow': latest['institutional_net'],
+                'foreign_net_inflow_5d': foreign_5d,
+                'institutional_net_inflow_5d': inst_5d,
+                'foreign_net_inflow_10d': foreign_10d,
+                'institutional_net_inflow_10d': inst_10d,
+                'daily_data': daily_data[:lookback_days],
+            }
+
+            logger.info(f"[韩国资金] {stock_code} 外资:{latest['foreign_net']}, 机构:{latest['institutional_net']}")
+            return result
+
+        except Exception as e:
+            logger.warning(f"[韩国资金] 获取资金流向失败 {stock_code}: {e}")
+            return None

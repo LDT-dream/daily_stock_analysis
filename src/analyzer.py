@@ -3120,7 +3120,31 @@ class GeminiAnalyzer:
                 for item in bottom_sectors[:3]
                 if isinstance(item, dict) and str(item.get("name", "")).strip()
             ) or "N/A"
-            prompt += f"""
+
+            # Korean stocks: foreign/institutional data
+            foreign_1d = stock_flow.get('foreign_net_inflow')
+            inst_1d = stock_flow.get('institutional_net_inflow')
+            foreign_5d = stock_flow.get('foreign_net_inflow_5d')
+            inst_5d = stock_flow.get('institutional_net_inflow_5d')
+            foreign_10d = stock_flow.get('foreign_net_inflow_10d')
+            inst_10d = stock_flow.get('institutional_net_inflow_10d')
+
+            if foreign_1d is not None or inst_1d is not None:
+                prompt += f"""
+### 外资/机构资金流向（操作建议过滤器）
+| 指标 | 数值 | 决策含义 |
+|------|------|----------|
+| 外资净买入(股) | {foreign_1d if foreign_1d is not None else 'N/A'} | 正值=外资看好，负值=外资减持 |
+| 机构净买入(股) | {inst_1d if inst_1d is not None else 'N/A'} | 正值=机构看好，负值=机构减持 |
+| 外资5日累计 | {foreign_5d if foreign_5d is not None else 'N/A'} | 外资持续性 |
+| 机构5日累计 | {inst_5d if inst_5d is not None else 'N/A'} | 机构持续性 |
+| 外资10日累计 | {foreign_10d if foreign_10d is not None else 'N/A'} | 外资中期趋势 |
+| 机构10日累计 | {inst_10d if inst_10d is not None else 'N/A'} | 机构中期趋势 |
+
+> 外资/机构资金流向是重要的先行指标。连续多日净买入说明机构看好，连续净卖出需警惕。结合价格位置和成交量综合判断。
+"""
+            else:
+                prompt += f"""
 ### 主力资金流向（操作建议过滤器）
 | 指标 | 数值 | 决策含义 |
 |------|------|----------|

@@ -2692,8 +2692,64 @@ class DataFetcherManager:
 
         # institution / capital_flow / dragon_tiger / boards: keep as not_supported
         # for offshore markets — no equivalent data feed today.
-        for block in ("institution", "capital_flow", "dragon_tiger", "boards"):
+        # Exception: Korean stocks have capital flow data from Naver Finance.
+        for block in ("institution", "dragon_tiger", "boards"):
             result_ctx[block] = self._build_fundamental_block(
+                "not_supported",
+                {},
+                [{"provider": "fundamental_pipeline", "result": "not_supported", "duration_ms": 0}],
+                ["not supported for offshore market"],
+            )
+
+        # Capital flow: supported for Korean stocks
+        if market == "kr":
+            capital_timeout = min(fetch_timeout, max(stage_timeout - (time.time() - start_ts), 0.0))
+            if capital_timeout > 0:
+                kr_fetcher = next((f for f in self._fetchers if f.name == "KoreaFinanceFetcher"), None)
+                if kr_fetcher:
+                    capital_payload, capital_err, capital_ms = self._run_with_retry(
+                        lambda: kr_fetcher.get_capital_flow(stock_code),
+                        capital_timeout,
+                        "capital_flow_kr",
+                    )
+                    if isinstance(capital_payload, dict) and capital_payload:
+                        stock_flow = {
+                            "foreign_net_inflow": capital_payload.get("foreign_net_inflow"),
+                            "institutional_net_inflow": capital_payload.get("institutional_net_inflow"),
+                            "foreign_net_inflow_5d": capital_payload.get("foreign_net_inflow_5d"),
+                            "institutional_net_inflow_5d": capital_payload.get("institutional_net_inflow_5d"),
+                            "foreign_net_inflow_10d": capital_payload.get("foreign_net_inflow_10d"),
+                            "institutional_net_inflow_10d": capital_payload.get("institutional_net_inflow_10d"),
+                        }
+                        result_ctx["capital_flow"] = self._build_fundamental_block(
+                            "ok",
+                            {"stock_flow": stock_flow, "sector_rankings": {"top": [], "bottom": []}},
+                            [{"provider": "capital_flow_naver", "result": "ok", "duration_ms": capital_ms}],
+                            [],
+                        )
+                    else:
+                        result_ctx["capital_flow"] = self._build_fundamental_block(
+                            "failed" if capital_err else "not_supported",
+                            {},
+                            [{"provider": "capital_flow_naver", "result": "failed", "duration_ms": capital_ms}],
+                            [capital_err] if capital_err else ["no data"],
+                        )
+                else:
+                    result_ctx["capital_flow"] = self._build_fundamental_block(
+                        "not_supported",
+                        {},
+                        [{"provider": "fundamental_pipeline", "result": "not_supported", "duration_ms": 0}],
+                        ["KoreaFinanceFetcher not available"],
+                    )
+            else:
+                result_ctx["capital_flow"] = self._build_fundamental_block(
+                    "not_supported",
+                    {},
+                    [{"provider": "fundamental_pipeline", "result": "not_supported", "duration_ms": 0}],
+                    ["timeout"],
+                )
+        else:
+            result_ctx["capital_flow"] = self._build_fundamental_block(
                 "not_supported",
                 {},
                 [{"provider": "fundamental_pipeline", "result": "not_supported", "duration_ms": 0}],
@@ -3075,7 +3131,8 @@ class DataFetcherManager:
         config = get_config()
         stock_code = normalize_stock_code(stock_code)
         timeout = float(budget_seconds if budget_seconds is not None else config.fundamental_fetch_timeout_seconds)
-        if _market_tag(stock_code) != "cn" or _is_etf_code(stock_code):
+        market = _market_tag(stock_code)
+        if market not in ("cn", "kr") or _is_etf_code(stock_code):
             return self._build_fundamental_block(
                 "not_supported",
                 {},
@@ -3090,6 +3147,37 @@ class DataFetcherManager:
                 [{"provider": "fundamental_pipeline", "result": "failed", "duration_ms": 0}],
                 ["fundamental stage timeout"],
             )
+
+        # Korean stocks: use KoreaFinanceFetcher
+        if market == "kr":
+            kr_fetcher = next((f for f in self._optional_fetchers if f.name == "KoreaFinanceFetcher"), None)
+            if kr_fetcher:
+                payload, err, cost_ms = self._run_with_retry(
+                    lambda: kr_fetcher.get_capital_flow(stock_code),
+                    timeout,
+                    "capital_flow_kr",
+                )
+                if isinstance(payload, dict) and payload:
+                    stock_flow = {
+                        "foreign_net_inflow": payload.get("foreign_net_inflow"),
+                        "institutional_net_inflow": payload.get("institutional_net_inflow"),
+                        "foreign_net_inflow_5d": payload.get("foreign_net_inflow_5d"),
+                        "institutional_net_inflow_5d": payload.get("institutional_net_inflow_5d"),
+                        "foreign_net_inflow_10d": payload.get("foreign_net_inflow_10d"),
+                        "institutional_net_inflow_10d": payload.get("institutional_net_inflow_10d"),
+                    }
+                    return self._build_fundamental_block(
+                        "ok",
+                        {"stock_flow": stock_flow, "sector_rankings": {"top": [], "bottom": []}},
+                        [{"provider": "capital_flow_naver", "result": "ok", "duration_ms": cost_ms}],
+                        [],
+                    )
+                return self._build_fundamental_block(
+                    "failed" if err else "not_supported",
+                    {},
+                    [{"provider": "capital_flow_naver", "result": "failed", "duration_ms": cost_ms}],
+                    [err] if err else ["no data"],
+                )
         payload, err, cost_ms = self._run_with_retry(
             lambda: self._fundamental_adapter.get_capital_flow(stock_code),
             timeout,
