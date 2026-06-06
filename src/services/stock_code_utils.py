@@ -86,10 +86,16 @@ def normalize_code(raw: str) -> Optional[str]:
     - Suffix format: 600519.SH, 600519.SZ, 920493.BJ, 00700.HK
     - Prefix format: SH600519, SZ000001, BJ920493, HK00700 (case-insensitive)
     - US ticker symbols: AAPL, TSLA
+    - Korean stocks: 000660.KS, 005930.KQ (suffix preserved)
     """
     text = raw.strip().upper()
     if not text:
         return None
+    # Korean stocks: preserve .KS/.KQ suffix (needed to distinguish from A-shares)
+    if text.endswith('.KS') or text.endswith('.KQ'):
+        base = text[:-3]
+        if base.isdigit() and len(base) == 6:
+            return text
     if text.isdigit() and len(text) in (5, 6):
         return text
     if re.match(r"^[A-Z]{1,5}(?:\.(?:US|[A-Z]))?$", text):
