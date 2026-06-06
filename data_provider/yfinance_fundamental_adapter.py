@@ -189,6 +189,17 @@ class YfinanceFundamentalAdapter:
             "net_profit_yoy": _ratio_to_pct(info.get("earningsGrowth")),
             "roe": _ratio_to_pct(info.get("returnOnEquity")),
             "gross_margin": _ratio_to_pct(info.get("grossMargins")),
+            "operating_margin": _ratio_to_pct(info.get("operatingMargins")),
+            "profit_margin": _ratio_to_pct(info.get("profitMargins")),
+            "forward_pe": _safe_float(info.get("forwardPE")),
+            "price_to_sales": _safe_float(info.get("priceToSalesTrailing12Months")),
+            "enterprise_to_ebitda": _safe_float(info.get("enterpriseToEbitda")),
+            "debt_to_equity": _safe_float(info.get("debtToEquity")),
+            "current_ratio": _safe_float(info.get("currentRatio")),
+            "beta": _safe_float(info.get("beta")),
+            "analyst_count": _safe_float(info.get("numberOfAnalystOpinions")),
+            "target_mean_price": _safe_float(info.get("targetMeanPrice")),
+            "held_percent_institutions": _ratio_to_pct(info.get("heldPercentInstitutions")),
         }
         if any(v is not None for v in growth_payload.values()):
             result["growth"] = growth_payload

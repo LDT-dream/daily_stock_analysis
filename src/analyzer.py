@@ -3028,6 +3028,58 @@ class GeminiAnalyzer:
 > 若上述字段为 N/A 或缺失，请明确写“数据缺失，无法判断”，禁止编造。
 """
 
+        # 增长数据（营收同比、净利同比、毛利率）
+        growth_block = (
+            fundamental_context.get("growth", {})
+            if isinstance(fundamental_context, dict)
+            else {}
+        )
+        growth_data = (
+            growth_block.get("data", {})
+            if isinstance(growth_block, dict)
+            else {}
+        )
+        if isinstance(growth_data, dict) and any(
+            v is not None for v in growth_data.values()
+        ):
+            rev_yoy = growth_data.get("revenue_yoy", "N/A")
+            profit_yoy = growth_data.get("net_profit_yoy", "N/A")
+            roe_val = growth_data.get("roe", "N/A")
+            gm_val = growth_data.get("gross_margin", "N/A")
+            op_margin = growth_data.get("operating_margin", "N/A")
+            net_margin = growth_data.get("profit_margin", "N/A")
+            fwd_pe = growth_data.get("forward_pe", "N/A")
+            ps_ratio = growth_data.get("price_to_sales", "N/A")
+            ev_ebitda = growth_data.get("enterprise_to_ebitda", "N/A")
+            de_ratio = growth_data.get("debt_to_equity", "N/A")
+            cur_ratio = growth_data.get("current_ratio", "N/A")
+            beta_val = growth_data.get("beta", "N/A")
+            analyst_cnt = growth_data.get("analyst_count", "N/A")
+            target_price = growth_data.get("target_mean_price", "N/A")
+            inst_pct = growth_data.get("held_percent_institutions", "N/A")
+            prompt += f"""
+### 成长性与估值指标
+| 指标 | 数值 | 说明 |
+|------|------|------|
+| 营收同比 | {rev_yoy}% | 年同比增长率 |
+| 净利润同比 | {profit_yoy}% | 年同比增长率 |
+| ROE | {roe_val}% | 净资产收益率 |
+| 毛利率 | {gm_val}% | 毛利润占营收比例 |
+| 营业利润率 | {op_margin}% | 营业利润占营收比例 |
+| 净利率 | {net_margin}% | 净利润占营收比例 |
+| 远期PE | {fwd_pe} | Forward P/E |
+| 市销率 | {ps_ratio} | Price/Sales |
+| EV/EBITDA | {ev_ebitda} | 企业价值/EBITDA |
+| 资产负债率 | {de_ratio}% | Debt/Equity |
+| 流动比率 | {cur_ratio} | Current Ratio |
+| Beta | {beta_val} | 波动率系数 |
+| 分析师数量 | {analyst_cnt} | 覆盖分析师数 |
+| 分析师目标价 | {target_price} | 平均目标价 |
+| 机构持股比例 | {inst_pct}% | 机构持仓占比 |
+
+> 若上述字段为 N/A 或缺失，请明确写“数据缺失，无法判断”，禁止编造。
+"""
+
         capital_flow_block = (
             fundamental_context.get("capital_flow", {})
             if isinstance(fundamental_context, dict)

@@ -2597,6 +2597,38 @@ class DataFetcherManager:
             "total_mv": getattr(quote_payload, "total_mv", None) if quote_payload else None,
             "circ_mv": getattr(quote_payload, "circ_mv", None) if quote_payload else None,
         }
+        # For offshore markets (US/HK/KR), also try yfinance info for PE/PB
+        # when realtime quote doesn't have them
+        if not valuation_payload["pe_ratio"] or not valuation_payload["pb_ratio"] or not valuation_payload["total_mv"]:
+            try:
+                import yfinance as yf
+                # Convert stock code to yfinance symbol
+                _code = (stock_code or "").strip().upper()
+                if "." in _code:
+                    yf_symbol = _code
+                elif _code.startswith("HK"):
+                    digits = _code[2:].lstrip("0") or "0"
+                    yf_symbol = f"{digits.zfill(4)}.HK"
+                else:
+                    yf_symbol = _code
+                if yf_symbol:
+                    _ticker = yf.Ticker(yf_symbol)
+                    _info = _ticker.info if hasattr(_ticker, 'info') else {}
+                    if isinstance(_info, dict):
+                        if not valuation_payload["pe_ratio"]:
+                            val = _info.get("trailingPE") or _info.get("forwardPE")
+                            if val:
+                                valuation_payload["pe_ratio"] = float(val)
+                        if not valuation_payload["pb_ratio"]:
+                            val = _info.get("priceToBook")
+                            if val:
+                                valuation_payload["pb_ratio"] = float(val)
+                        if not valuation_payload["total_mv"]:
+                            val = _info.get("marketCap")
+                            if val:
+                                valuation_payload["total_mv"] = float(val)
+            except Exception:
+                pass
         valuation_status = self._infer_block_status(
             valuation_payload,
             "partial" if quote_payload is not None else "not_supported",
@@ -2752,7 +2784,7 @@ class DataFetcherManager:
         stock_code = normalize_stock_code(stock_code)
         market = _market_tag(stock_code)
         is_etf = _is_etf_code(stock_code)
-        if market in {"us", "hk"}:
+        if market in {"us", "hk", "kr"}:
             return self._build_offshore_fundamental_context(
                 stock_code,
                 market=market,
